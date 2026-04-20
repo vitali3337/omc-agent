@@ -59,11 +59,29 @@ async def run_agent(key, task, cid, label=None):
     await mgr.send(cid, {"type":"agent_start","agent":key,"name":label or a["name"],"color":a["color"]})
     result = ""
     try:
-        with client.messages.stream(model="claude-sonnet-4-6", max_tokens=2048,
-                system=a["system"], messages=[{"role":"user","content":task}]) as s:
-            for t in s.text_stream:
-                result += t
-                await mgr.send(cid, {"type":"token","agent":key,"text":t,"color":a["color"]})
+        try:
+    response = client.messages.create(
+        model="claude-3-haiku-20240307",
+        max_tokens=1024,
+        system=a["system"],
+        messages=[{"role": "user", "content": task}]
+    )
+
+    text = response.content[0].text
+    result += text
+
+    # имитация стрима (чтобы UI красиво печатал)
+    for chunk in text.split():
+        await mgr.send(cid, {
+            "type": "token",
+            "agent": key,
+            "text": chunk + " ",
+            "color": a["color"]
+        })
+
+except Exception as e:
+    await mgr.send(cid, {"type":"error","agent":key,"text":str(e)})
+
     except Exception as e:
         await mgr.send(cid, {"type":"error","agent":key,"text":str(e)})
     await mgr.send(cid, {"type":"agent_done","agent":key})
